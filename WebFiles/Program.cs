@@ -19,25 +19,13 @@ var app = builder.Build();
 
 app.UseHttpsRedirection();
 
-var fileProvider = new PhysicalFileProvider(Path.Combine(builder.Environment.WebRootPath, "pub"));
+app.MapWhen(context => context.Request.Path.StartsWithSegments("/priv"), appBuilder =>
+{
+    appBuilder.UseMiddleware<BasicAuthMiddleware>();
+});
+
+var fileProvider = new PhysicalFileProvider(builder.Environment.WebRootPath);
 var requestPath = "";
-
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = fileProvider,
-    RequestPath = requestPath
-});
-
-app.UseDirectoryBrowser(new DirectoryBrowserOptions
-{
-    FileProvider = fileProvider,
-    RequestPath = requestPath
-});
-
-app.UseMiddleware<BasicAuthMiddleware>();
-
-fileProvider = new PhysicalFileProvider(Path.Combine(builder.Environment.WebRootPath, "priv"));
-requestPath = "/priv";
 
 app.UseStaticFiles(new StaticFileOptions
 {
