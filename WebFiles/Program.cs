@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 
@@ -30,7 +31,8 @@ var requestPath = "";
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = fileProvider,
-    RequestPath = requestPath
+    RequestPath = requestPath,
+    ContentTypeProvider = new AllContentTypeProvider()
 });
 
 app.UseDirectoryBrowser(new DirectoryBrowserOptions
@@ -47,6 +49,21 @@ public class AuthConfig
         = "";
     public string[] Tokens { get; set; }
         = Array.Empty<string>();
+}
+
+public class AllContentTypeProvider : IContentTypeProvider
+{
+    private readonly IContentTypeProvider baseProvider
+        = new FileExtensionContentTypeProvider();
+
+    public bool TryGetContentType(string subpath, out string contentType)
+    {
+        if (!baseProvider.TryGetContentType(subpath, out contentType!))
+        {
+            contentType = "application/octet-stream";
+        }
+        return true;
+    }
 }
 
 public class BasicAuthMiddleware
