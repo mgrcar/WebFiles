@@ -20,9 +20,16 @@ var app = builder.Build();
 
 app.UseHttpsRedirection();
 
-app.MapWhen(context => context.Request.Path.StartsWithSegments("/priv"), appBuilder =>
+app.UseMiddleware<BasicAuthMiddleware>();
+
+app.Use(async (context, next) =>
 {
-    appBuilder.UseMiddleware<BasicAuthMiddleware>();
+    if (context.Request.Path.StartsWithSegments("/"))
+    {
+        context.Response.Redirect("pub/", permanent: false);
+        return;
+    }
+    await next();
 });
 
 var fileProvider = new PhysicalFileProvider(builder.Environment.WebRootPath);
@@ -79,24 +86,31 @@ public class BasicAuthMiddleware
 
     public async Task Invoke(HttpContext context)
     {
-        string? username = null, password = null;
-        try
+        if (context.Request.Path.StartsWithSegments("/priv"))
         {
-            var authHeader = AuthenticationHeaderValue.Parse(context.Request.Headers["Authorization"]);
-            var credentialBytes = Convert.FromBase64String(authHeader.Parameter ?? "");
-            var credentials = Encoding.UTF8.GetString(credentialBytes).Split(':', 2);
-            username = credentials[0];
-            password = credentials[1];
+            string? username = null, password = null;
+            try
+            {
+                var authHeader = AuthenticationHeaderValue.Parse(context.Request.Headers["Authorization"]);
+                var credentialBytes = Convert.FromBase64String(authHeader.Parameter ?? "");
+                var credentials = Encoding.UTF8.GetString(credentialBytes).Split(':', 2);
+                username = credentials[0];
+                password = credentials[1];
+            }
+            catch
+            {
+            }
+            if (username != password || !config.Tokens.Contains(password))
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+                context.Response.Headers.Add("WWW-Authenticate", $"Basic realm=\"{config.AuthRealm}\""); // ask for credentials
+            }
+            else
+            {
+                await next(context);
+            }
         }
-        catch
-        {
-        }
-        if (username != password || !config.Tokens.Contains(password))
-        {
-            context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
-            context.Response.Headers.Add("WWW-Authenticate", $"Basic realm=\"{config.AuthRealm}\""); // ask for credentials
-        }
-        else
+        else 
         {
             await next(context);
         }
